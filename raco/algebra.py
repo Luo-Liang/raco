@@ -104,7 +104,7 @@ class Operator(Printable):
         if parent_map is None:
             parent_map = {}
         for c in self.children():
-            parent_map.setdefault(c, []).append(self)
+            parent_map.setdefault(id(c), []).append(self)
             c.collectParents(parent_map)
 
     def __copy__(self):
@@ -456,7 +456,8 @@ class UnionAll(NaryOperator):
     def scheme(self):
         for child in self.args:
             assert all(
-                la[1] == ra[1] for la, ra in zip(child.scheme(), self.args[0].scheme())), \
+                la[1] == ra[1] for la, ra in
+                zip(child.scheme(), self.args[0].scheme())), \
                 "Must be same scheme types: {left} != {right}".format(
                     left=child.scheme(), right=self.args[0].scheme())
         return self.args[0].scheme()
@@ -1849,4 +1850,5 @@ def convertcondition(condition, left_len, combined_scheme):
         assert rightcol >= left_len
         return [leftcol], [rightcol - left_len]
 
-    raise NotImplementedError("Myria only supports EquiJoins, not %s" % condition)  # noqa
+    raise NotImplementedError("Myria only supports EquiJoins,"
+                              "not %s" % condition)  # noqa

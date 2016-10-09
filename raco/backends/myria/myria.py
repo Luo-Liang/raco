@@ -1861,14 +1861,8 @@ def ensure_store_temp(label, op):
     return MyriaStoreTemp(input=op, name=label)
 
 
-def compile_fragment(frag_root):
+def compile_fragment(frag_root, op_ids):
     """Given a root operator, produce a SubQueryEncoding."""
-
-    # A dictionary mapping each object to a unique, object-dependent id.
-    # Since we want this to be truly unique for each object instance, even if
-    # two objects are equal, we use id(obj) as the key.
-    opid_factory = OpIdFactory()
-    op_ids = defaultdict(opid_factory.getter())
 
     def one_fragment(rootOp):
         """Given an operator that is the root of a query fragment/plan, extract
@@ -1924,10 +1918,13 @@ def compile_fragment(frag_root):
     def call_compile_me(op):
         "A shortcut to call the operator's compile_me function."
         op_id = op_ids[id(op)]
-        child_op_ids = [op_ids[id(child)] for child in op.children()]
+        assert isinstance(op_id, int), (type(op_id), op_id)
+        if isinstance(op, MyriaConsumer):
+            child_op_ids = [op_ids[id(op.producer)]]
+        else:
+            child_op_ids = [op_ids[id(child)] for child in op.children()]
         op_dict = op.compileme(*child_op_ids)
         op_dict['opName'] = op.shortStr()
-        assert isinstance(op_id, int), (type(op_id), op_id)
         op_dict['opId'] = op_id
         return op_dict
 
@@ -1941,12 +1938,18 @@ def compile_plan(plan_op):
     produce the dictionary encoding of the physical plan, in other words, a
     nested collection of Java QueryPlan operators."""
 
-    subplan_ops = (algebra.Parallel, algebra.Sequence, algebra.DoWhile)
+    # A dictionary mapping each object to a unique, object-dependent id.
+    # Since we want this to be truly unique for each object instance, even if
+    # two objects are equal, we use id(obj) as the key.
+    op_ids = defaultdict(OpIdFactory().getter())
+
+    subplan_ops = (algebra.Parallel, algebra.Sequence,
+                   algebra.DoWhile, algebra.UntilConvergence)
     if not isinstance(plan_op, subplan_ops):
         plan_op = algebra.Parallel([plan_op])
 
     if isinstance(plan_op, algebra.Parallel):
-        frag_list = [compile_fragment(op) for op in plan_op.children()]
+        frag_list = [compile_fragment(op, op_ids) for op in plan_op.children()]
         return {"type": "SubQuery",
                 "fragments": list(itertools.chain(*frag_list))}
 
@@ -1957,10 +1960,12 @@ def compile_plan(plan_op):
     elif isinstance(plan_op, algebra.DoWhile):
         children = plan_op.children()
         if len(children) < 2:
-            raise ValueError('DoWhile must have at >= 2 children: body and condition')  # noqa
+            raise ValueError('DoWhile must have at >= 2 children:'
+                             'body and condition')  # noqa
         condition = children[-1]
         if isinstance(condition, subplan_ops):
-            raise ValueError('DoWhile condition cannot be a subplan op {cls}'.format(cls=condition.__class__))  # noqa
+            raise ValueError('DoWhile condition cannot be a subplan'
+                             'op {cls}'.format(cls=condition.__class__))  # noqa
         condition = ensure_store_temp('__dowhile_{}_condition'.format(id(
             plan_op)), condition)
         plan_op.args = children[:-1] + [condition]
@@ -1969,11 +1974,16 @@ def compile_plan(plan_op):
                 "body": body,
                 "condition": condition.name}
 
+    elif isinstance(plan_op, algebra.UntilConvergence):
+        frag_list = [compile_fragment(op, op_ids) for op in plan_op.children()]
+        return {"type": "SubQuery",
+                "fragments": list(itertools.chain(*frag_list))}
+
     raise NotImplementedError("compiling subplan op {}".format(type(plan_op)))
 
 
 def compile_to_json(raw_query, logical_plan, physical_plan,
-                    language="not specified"):
+                    language="not specified", async_ft=False):
     """This function compiles a physical query plan to the JSON suitable for
     submission to the Myria REST API server. The logical plan is converted to a
     string and passed along unchanged."""
@@ -1983,14 +1993,20 @@ def compile_to_json(raw_query, logical_plan, physical_plan,
     if isinstance(physical_plan, root_ops):
         physical_plan = algebra.Parallel([physical_plan])
 
-    subplan_ops = (algebra.Parallel, algebra.Sequence, algebra.DoWhile)
+    subplan_ops = (algebra.Parallel, algebra.Sequence,
+                   algebra.DoWhile, algebra.UntilConvergence)
     assert isinstance(physical_plan, subplan_ops), \
-        'Physical plan must be a subplan operator, not {}'.format(type(physical_plan))  # noqa
+        'Physical plan must be a subplan operator,' \
+        'not {}'.format(type(physical_plan))  # noqa
 
     # raw_query must be a string
     if not isinstance(raw_query, basestring):
         raise ValueError("raw query must be a string")
-    return {"rawQuery": raw_query,
-            "logicalRa": str(logical_plan),
-            "language": language,
-            "plan": compile_plan(physical_plan)}
+
+    ret = {"rawQuery": raw_query,
+           "logicalRa": str(logical_plan),
+           "language": language,
+           "plan": compile_plan(physical_plan)}
+    if async_ft is not None and async_ft:
+        ret.update({"ftMode": "REJOIN"})
+    return ret

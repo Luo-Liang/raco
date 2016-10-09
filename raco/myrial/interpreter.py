@@ -571,7 +571,8 @@ class StatementProcessor(object):
 
         # TODO This is not correct. The first argument is the raw query string,
         # not the string representation of the logical plan
-        return compile_to_json(str(lp), pps, pps, "myrial")
+        return compile_to_json(str(lp), pps, pps, "myrial",
+                               kwargs.get("async_ft"))
 
     @classmethod
     def get_json_from_physical_plan(cls, pp):
