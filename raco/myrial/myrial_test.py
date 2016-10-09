@@ -42,6 +42,12 @@ class MyrialTestCase(unittest.TestCase):
         # Test repr
         return replace_with_repr(p)
 
+    def get_json(self, query, **kwargs):
+        """Get the json for a MyriaL query"""
+        statements = self.parser.parse(query)
+        self.processor.evaluate(statements)
+        return self.processor.get_json(**kwargs)
+
     def get_logical_plan(self, query, **kwargs):
         """Get the logical plan for a MyriaL query"""
         kwargs['logical'] = True
