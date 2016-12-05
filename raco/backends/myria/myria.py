@@ -477,11 +477,18 @@ class MyriaGroupBy(algebra.GroupBy, MyriaOperator):
         assert isinstance(agg, expression.BuiltinAggregateExpression)
         if isinstance(agg, expression.COUNTALL):
             return {"type": "CountAll"}
+        column = expression.toUnnamed(agg.input, child_scheme).position
+        if isinstance(agg, expression.CMS):
+            return {"type": "SingleColumn",
+                    "aggOps": ["COUNT"],
+                    "sketchOption": "UseSketchMin",
+                    "column": column}
+        
 
         assert isinstance(agg, expression.UnaryOperator)
-        column = expression.toUnnamed(agg.input, child_scheme).position
         return {"type": "SingleColumn",
                 "aggOps": [MyriaGroupBy.agg_mapping(agg)],
+                "sketchOption": "DoNotSketch",
                 "column": column}
 
     def compileme(self, inputid):

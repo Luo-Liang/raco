@@ -237,6 +237,25 @@ class COUNT(UnaryFunction, BuiltinAggregateExpression):
     def is_decomposable(self):
         return True
 
+class CMS(UnaryFunction, BuiltinAggregateExpression):
+    def evaluate_aggregate(self, tuple_iterator, scheme):
+        inputs = (self.input.evaluate(t, scheme) for t in tuple_iterator)
+        count = 0
+        for t in inputs:
+            if t is not None:
+                count += 1
+        return count
+
+    def typeof(self, scheme, state_scheme):
+        return types.LONG_TYPE
+
+    def get_decomposable_state(self):
+        return DecomposableAggregateState(
+            [self], [], [SUM(LocalAggregateOutput(0))], [])
+
+    def is_decomposable(self):
+        return True
+
 
 class SUM(UnaryFunction, TrivialAggregateExpression):
     def evaluate_aggregate(self, tuple_iterator, scheme):
