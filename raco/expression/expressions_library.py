@@ -28,6 +28,13 @@ def create_nested_binary(num_args, func):
     var_refs = [NamedAttributeRef(vstr) for vstr in var]
     return Function(var, reduce(func, var_refs))
 
+def create_hash(num_args):
+    if num_args < 2:
+        return None
+
+    var = ["x{i}".format(i=i + 1) for i in xrange(num_args)]
+    var_refs = [NamedAttributeRef(vstr) for vstr in var]
+    return Function(var, HASH(var_refs))
 
 # mapping from name -> dict or Function
 # the dict is a mapping from arity -> Function
@@ -66,6 +73,7 @@ EXPRESSIONS_CASE = {
                                      NumericLiteral(0)),
                              LEN(NamedAttributeRef('str'))
                              ])),
+    'hash': lambda num_args: create_hash(num_args),
     'flip': Function(['p'], LT(RANDOM(), NamedAttributeRef('p')))
 }
 

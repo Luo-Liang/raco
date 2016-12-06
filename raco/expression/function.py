@@ -314,6 +314,21 @@ class SPLIT(BinaryFunction):
         return types.STRING_TYPE
 
 
+class HASH(NaryFunction):
+    literals = ["HASH"]
+
+    # TODO: implement
+    def evaluate(self, _tuple, scheme, state=None):
+        raise NotImplementedError()
+
+    def typeof(self, scheme, state_scheme):
+        #lt = self.left.typeof(scheme, state_scheme)
+        #check_type(lt, types.INT_TYPE)
+        #rt = self.right.typeof(scheme, state_scheme)
+        #check_type(rt, types.STRING_TYPE)
+        return types.INT_TYPE
+
+
 class SEQUENCE(UnaryFunction):
     literals = ["SEQUENCE"]
 
